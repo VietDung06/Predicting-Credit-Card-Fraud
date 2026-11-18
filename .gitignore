@@ -1,0 +1,17 @@
+# Bỏ qua dữ liệu lớn của Kaggle (GitHub sẽ báo lỗi nếu đẩy file > 100MB)
+data/*.csv
+data/*.zip
+*.csv
+!outputs/sample_submission.csv
+
+# Bỏ qua file mô hình quá nặng (nếu file .pkl trên 50MB thì bỏ dấu # ở dòng dưới)
+# models/*.pkl
+
+# Bỏ qua file rác của Python & hệ thống
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+.env
+.DS_Store
