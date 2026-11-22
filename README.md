@@ -45,8 +45,14 @@ python -m src.train --folds 3 --n-estimators 50 --sample-fraction 0.1
 python -m src.train --folds 5 --n-estimators 100 --sample-fraction 0.1 --model-output models/fraud_models_demo10.pkl --submission-output outputs/submission_demo10.csv --metrics-output outputs/training_metrics_demo10.json
 ```
 
+Dùng LightGBM thay cho XGBoost (mặc định) bằng `--model lightgbm`:
+
+```powershell
+python -m src.train --model lightgbm --folds 5 --n-estimators 300 --model-output models/fraud_models_lgbm.pkl --submission-output outputs/submission_lgbm.csv
+```
+
 Output:
-- `models/fraud_models.pkl`: 5 pipeline XGBoost fold
+- `models/fraud_models.pkl`: 5 pipeline fold (XGBoost hoặc LightGBM, lưu trong khóa `model_type`)
 - `outputs/submission.csv`: file nộp Kaggle
 - `outputs/training_metrics.json`: OOF AUC và AUC từng fold
 

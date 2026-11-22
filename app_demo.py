@@ -18,13 +18,14 @@ def load_train_sample():
 
 st.set_page_config(page_title="Phát hiện gian lận thẻ tín dụng", layout="wide")
 st.title("Demo phát hiện gian lận thẻ tín dụng")
-st.caption("Mô hình XGBoost ensemble với 5-fold StratifiedKFold")
-
 if not MODEL_FILE.exists():
     st.error("Chưa có mô hình. Hãy chạy `python -m src.train` trước.")
     st.stop()
 
 artifact = load_artifact()
+MODEL_NAMES = {"xgboost": "XGBoost", "lightgbm": "LightGBM"}
+model_name = MODEL_NAMES.get(artifact.get("model_type", "xgboost"), "XGBoost")
+st.caption(f"Mô hình {model_name} ensemble với 5-fold StratifiedKFold")
 st.sidebar.metric("OOF ROC AUC", f"{artifact.get('oof_auc', 0):.4f}")
 
 train_sample = load_train_sample()
