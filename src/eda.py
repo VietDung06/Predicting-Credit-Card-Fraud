@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from .config import OUTPUT_DIR, TARGET_COLUMN, TRAIN_FILE
+from .config import MODEL_FILE, OUTPUT_DIR, TARGET_COLUMN, TRAIN_FILE
 
 
 def save_class_balance(df: pd.DataFrame) -> None:
@@ -84,12 +84,11 @@ def save_correlation(df: pd.DataFrame) -> None:
 
 
 def save_feature_importance() -> None:
-    model_file = __import__("src.config", fromlist=["MODEL_FILE"]).MODEL_FILE
-    if not model_file.exists():
+    if not MODEL_FILE.exists():
         return
     import joblib
 
-    artifact = joblib.load(model_file)
+    artifact = joblib.load(MODEL_FILE)
     importances = []
     for pipeline in artifact["models"]:
         preprocessor = pipeline.named_steps["preprocessor"]
@@ -101,7 +100,9 @@ def save_feature_importance() -> None:
     average = pd.concat(importances, axis=1).mean(axis=1).sort_values(ascending=False).head(25)
     fig, ax = plt.subplots(figsize=(10, 8))
     average.sort_values().plot(kind="barh", ax=ax, color="#72B7B2")
-    ax.set_title("Feature importance trung bình (XGBoost)")
+    model_names = {"xgboost": "XGBoost", "lightgbm": "LightGBM"}
+    model_name = model_names.get(artifact.get("model_type", "xgboost"), "mô hình")
+    ax.set_title(f"Feature importance trung bình ({model_name})")
     fig.tight_layout()
     fig.savefig(OUTPUT_DIR / "feature_importance.png", dpi=150)
     plt.close(fig)

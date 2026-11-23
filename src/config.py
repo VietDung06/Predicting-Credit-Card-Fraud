@@ -61,3 +61,19 @@ XGBOOST_PARAMS = {
     "eval_metric": "auc",
     "n_jobs": -1,
 }
+
+LIGHTGBM_PARAMS = {
+    "n_estimators": 100,
+    "learning_rate": 0.1,
+    "num_leaves": 63,
+    "max_depth": -1,
+    "subsample": 0.8,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.8,
+    "min_child_samples": 20,
+    "random_state": RANDOM_STATE,
+    "n_jobs": -1,
+    "verbose": -1,
+}
+
+SUPPORTED_MODELS = ("xgboost", "lightgbm")

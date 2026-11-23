@@ -1,14 +1,15 @@
 import joblib
 import pandas as pd
 import streamlit as st
+from pathlib import Path
 
 from src.config import MODEL_FILE, TRAIN_FILE
 from src.predict import predict_fraud
 
 
 @st.cache_resource
-def load_artifact():
-    return joblib.load(MODEL_FILE)
+def load_artifact(model_path):
+    return joblib.load(model_path)
 
 
 @st.cache_data
@@ -18,13 +19,20 @@ def load_train_sample():
 
 st.set_page_config(page_title="Phát hiện gian lận thẻ tín dụng", layout="wide")
 st.title("Demo phát hiện gian lận thẻ tín dụng")
-st.caption("Mô hình XGBoost ensemble với 5-fold StratifiedKFold")
-
-if not MODEL_FILE.exists():
+model_files = sorted(Path(MODEL_FILE.parent).glob("fraud_models*.pkl"))
+if not model_files:
     st.error("Chưa có mô hình. Hãy chạy `python -m src.train` trước.")
     st.stop()
 
-artifact = load_artifact()
+selected_model = st.sidebar.selectbox(
+    "Chọn mô hình",
+    model_files,
+    format_func=lambda path: path.name,
+)
+artifact = load_artifact(selected_model)
+MODEL_NAMES = {"xgboost": "XGBoost", "lightgbm": "LightGBM"}
+model_name = MODEL_NAMES.get(artifact.get("model_type", "xgboost"), "XGBoost")
+st.caption(f"Mô hình {model_name} ensemble với 5-fold StratifiedKFold")
 st.sidebar.metric("OOF ROC AUC", f"{artifact.get('oof_auc', 0):.4f}")
 
 train_sample = load_train_sample()
@@ -99,7 +107,7 @@ transaction = {
 
 st.subheader("Dự đoán")
 if st.button("Dự đoán xác suất gian lận", type="primary"):
-    probability = predict_fraud(transaction)[0]
+    probability = predict_fraud(transaction, model_path=selected_model)[0]
     st.metric("Xác suất gian lận", f"{probability:.2%}")
     if probability >= 0.5:
         st.error("CẢNH BÁO: Giao dịch có khả năng gian lận cao")
@@ -113,7 +121,7 @@ uploaded = st.file_uploader("Hoặc dự đoán batch từ file CSV", type=["csv
 if uploaded is not None:
     batch = pd.read_csv(uploaded)
     if st.button("Dự đoán batch"):
-        probabilities = predict_fraud(batch)
+        probabilities = predict_fraud(batch, model_path=selected_model)
         result = batch.copy()
         result["is_fraud_probability"] = probabilities
         st.dataframe(result, use_container_width=True)

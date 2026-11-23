@@ -13,14 +13,17 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
+from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
 
 from .config import (
     ID_COLUMN,
+    LIGHTGBM_PARAMS,
     MODEL_FILE,
     N_FOLDS,
     NUMERIC_COLUMNS,
     RANDOM_STATE,
+    SUPPORTED_MODELS,
     SUBMISSION_FILE,
     TARGET_COLUMN,
     TEST_FILE,
@@ -30,7 +33,15 @@ from .config import (
 from .features import create_features
 
 
-def build_pipeline(scale_pos_weight: float) -> Pipeline:
+def build_classifier(model_type: str, scale_pos_weight: float):
+    if model_type == "xgboost":
+        return XGBClassifier(**(XGBOOST_PARAMS | {"scale_pos_weight": scale_pos_weight}))
+    if model_type == "lightgbm":
+        return LGBMClassifier(**(LIGHTGBM_PARAMS | {"scale_pos_weight": scale_pos_weight}))
+    raise ValueError(f"Mô hình không được hỗ trợ: {model_type}")
+
+
+def build_pipeline(scale_pos_weight: float, model_type: str = "xgboost") -> Pipeline:
     numeric_columns = NUMERIC_COLUMNS + [
         "log_amount",
         "amount_to_balance_ratio",
@@ -78,15 +89,20 @@ def build_pipeline(scale_pos_weight: float) -> Pipeline:
         remainder="drop",
     )
 
-    params = XGBOOST_PARAMS | {"scale_pos_weight": scale_pos_weight}
-    classifier = XGBClassifier(**params)
+    classifier = build_classifier(model_type, scale_pos_weight)
     return Pipeline([("preprocessor", preprocessor), ("classifier", classifier)])
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--folds", type=int, default=N_FOLDS)
-    parser.add_argument("--n-estimators", type=int, default=XGBOOST_PARAMS["n_estimators"])
+    parser.add_argument(
+        "--model",
+        choices=SUPPORTED_MODELS,
+        default="xgboost",
+        help="Framework mô hình: xgboost (mặc định) hoặc lightgbm",
+    )
+    parser.add_argument("--n-estimators", type=int, default=100)
     parser.add_argument("--sample-fraction", type=float, default=1.0)
     parser.add_argument(
         "--model-output",
@@ -146,7 +162,11 @@ def main() -> None:
         X_train, X_valid = X.iloc[train_index], X.iloc[valid_index]
         y_train, y_valid = y.iloc[train_index], y.iloc[valid_index]
 
-        pipeline = build_pipeline(scale_pos_weight)
+        negative_count_fold = int((y_train == 0).sum())
+        positive_count_fold = int((y_train == 1).sum())
+        scale_pos_weight_fold = negative_count_fold / max(positive_count_fold, 1)
+
+        pipeline = build_pipeline(scale_pos_weight_fold, args.model)
         pipeline.set_params(classifier__n_estimators=args.n_estimators)
         pipeline.fit(X_train, y_train)
         valid_prediction = pipeline.predict_proba(X_valid)[:, 1]
@@ -158,7 +178,7 @@ def main() -> None:
         print(f"Fold {fold}/{args.folds} ROC AUC: {fold_auc:.6f}")
 
     oof_auc = roc_auc_score(y, oof_predictions)
-    print(f"OOF ROC AUC: {oof_auc:.6f}")
+    print(f"[{args.model}] OOF ROC AUC: {oof_auc:.6f}")
 
     test_predictions = np.mean(
         [model.predict_proba(X_test)[:, 1] for model in models],
@@ -170,6 +190,7 @@ def main() -> None:
 
     artifact = {
         "models": models,
+        "model_type": args.model,
         "feature_columns": list(X.columns),
         "target_column": TARGET_COLUMN,
         "oof_auc": oof_auc,
@@ -195,6 +216,7 @@ def main() -> None:
     metrics_file.write_text(
         json.dumps(
             {
+                "model_type": args.model,
                 "oof_auc": oof_auc,
                 "fold_scores": fold_scores,
                 "n_samples": len(train_df),
