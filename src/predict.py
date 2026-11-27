@@ -12,8 +12,41 @@ from .features import create_features
 
 def load_artifact(model_path: Union[str, Path] = MODEL_FILE) -> dict:
     artifact = joblib.load(model_path)
-    if not isinstance(artifact, dict) or "models" not in artifact:
+    required_keys = {
+        "models",
+        "feature_columns",
+        "model_weights",
+    }
+
+    if not isinstance(artifact, dict):
         raise ValueError("Tệp mô hình không đúng định dạng fraud_models.pkl")
+
+    missing_keys = required_keys - artifact.keys()
+
+    if missing_keys:
+        raise ValueError(
+            f"Model artifact thiếu các trường: {missing_keys}"
+        )
+
+    expected_models = {"xgboost", "catboost", "lightgbm"}
+
+    if set(artifact["models"]) != expected_models:
+        raise ValueError("Model artifact không chứa đủ 3 mô hình.")
+
+    weights = artifact["model_weights"]
+
+    if any(weight < 0 for weight in weights.values()):
+        raise ValueError("Model weights không được âm.")
+
+    if not abs(sum(weights.values()) - 1.0) < 1e-6:
+        raise ValueError("Tổng model weights phải bằng 1.")
+
+    if set(artifact["model_weights"]) != expected_models:
+        raise ValueError("Model weights không khớp với 3 mô hình.")
+
+    if any(len(artifact["models"][name]) == 0 for name in expected_models):
+        raise ValueError("Một hoặc nhiều nhóm mô hình không có model.")
+    
     return artifact
 
 
@@ -32,10 +65,29 @@ def predict_fraud(
         raise ValueError(f"Thiếu các cột đầu vào: {missing_features}")
 
     frame = frame.reindex(columns=feature_columns)
-    probabilities = [
-        model.predict_proba(frame)[:, 1] for model in artifact["models"]
-    ]
-    return list(pd.DataFrame(probabilities).mean(axis=0).astype(float))
+    models = artifact["models"]
+    model_weights = artifact["model_weights"]
+
+    model_predictions = {}
+
+    for model_type, fold_models in models.items():
+        fold_predictions = [
+            model.predict_proba(frame)[:, 1]
+            for model in fold_models
+        ]
+
+        model_predictions[model_type] = (
+            pd.DataFrame(fold_predictions)
+            .mean(axis=0)
+            .to_numpy()
+        )
+
+    ensemble_prediction = sum(
+        model_weights[model_type] * model_predictions[model_type]
+        for model_type in model_predictions
+    )
+
+    return ensemble_prediction.astype(float).tolist()
 
 
 def predict_csv(
@@ -52,5 +104,7 @@ def predict_csv(
             "is_fraud": probabilities,
         }
     )
-    result.to_csv(output_csv, index=False)
+    output_path = Path(output_csv)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    result.to_csv(output_path, index=False)
     return result

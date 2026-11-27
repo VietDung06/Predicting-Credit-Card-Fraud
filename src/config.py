@@ -62,6 +62,19 @@ XGBOOST_PARAMS = {
     "n_jobs": -1,
 }
 
+CATBOOST_PARAMS = {
+    "iterations": 1000,
+    "learning_rate": 0.05,
+    "depth": 6,
+    "loss_function": "Logloss",
+    "eval_metric": "AUC",
+    "l2_leaf_reg": 3,
+    "random_seed": RANDOM_STATE,
+    "verbose": False,
+    "allow_writing_files": False,
+    "thread_count": -1,
+}
+
 LIGHTGBM_PARAMS = {
     "n_estimators": 100,
     "learning_rate": 0.1,
@@ -76,4 +89,10 @@ LIGHTGBM_PARAMS = {
     "verbose": -1,
 }
 
-SUPPORTED_MODELS = ("xgboost", "lightgbm")
+SUPPORTED_MODELS = ("xgboost", "catboost", "lightgbm")
+
+MODEL_WEIGHTS = {
+    "xgboost": 1 / 3,
+    "catboost": 1 / 3,
+    "lightgbm": 1 / 3,
+}
